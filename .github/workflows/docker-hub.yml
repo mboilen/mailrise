@@ -25,7 +25,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: yoryan/mailrise
+          images: mboilen/mailrise
           # main tip is tagged "latest"; releases are tagged "vX.X.X"
           tags: |
             type=schedule
@@ -65,7 +65,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: yoryan/mailrise
+          images: mboilen/mailrise
           # main tip is tagged "latest-buster"; releases are tagged "vX.X.X-buster"
           tags: |
             type=schedule
