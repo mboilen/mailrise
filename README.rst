@@ -134,6 +134,12 @@ configs.<name>                         dictionary ``<name>`` denotes the email a
                                                   ``mailrise.xyz`` domain will be added (resulting in the full email address
                                                   ``notify@mailrise.xyz``).
 
+                                                  `fnmatch <https://docs.python.org/3/library/fnmatch.html>`_ pattern
+                                                  matching tokens are also accepted here, though they are considered special
+                                                  characters in YAML and therefore must be enclosed in quoted strings.
+                                                  Please also note that the domain component still defaults to
+                                                  ``mailrise.xyz``, so to match any username on any domain, use ``*@*``.
+
                                                   Please note that the period character is reserved for sender flags, so it
                                                   cannot be used in the username component of the address.
                                                   ``bad.address`` is not okay, and neither is ``bad.address@mydomain.com``.
@@ -208,3 +214,126 @@ config     The name of the selected Apprise configuration, unless it uses a cust
 type       The class of Apprise notification. This is "info", "success", "warning", or
            "failure".
 ========== ====================================================================================
+
+Sample file
+-----------
+
+If you are new to YAML syntax, you may find the `Online YAML Parser
+<https://yaml-online-parser.appspot.com/>`_, which converts YAML syntax to the
+underlying JSON structure, a useful aid.
+
+.. code-block:: yaml
+
+    configs:
+
+      # You can send to this config with "basic_assistant@mailrise.xyz".
+      #
+      # The "-" is *very* important, even when configuring just a single URL.
+      # Apprise requires urls to be a YAML *list*.
+      #
+      basic_assistant:
+        urls:
+          - hasio://HOST/ACCESS_TOKEN
+
+      # You can send to this config with "telegram_and_discord@mailrise.xyz".
+      #
+      telegram_and_discord:
+        urls:
+          - tgam://MY_BOT_TOKEN
+          - discord://WEBHOOK_ID/WEBHOOK_TOKEN
+        # You can also control the layout of the message with custom template
+        # strings.
+        mailrise:
+          title_template: "Urgent: ${body}"
+          body_template: ""
+          body_format: text
+
+      # You can send to this config with "my_cool_name@mycooldomain.com".
+      #
+      my_cool_name@mycooldomain.com:
+        urls:
+          - pover://USER_KEY@TOKEN
+
+      # We also support wildcards with the fnmatch library; see
+      # https://docs.python.org/3/library/fnmatch.html for the full syntax.
+      #
+      # YAML requires characters like "*" and "[" to be enclosed in quoted
+      # strings.
+      #
+      # This pattern matches addresses like "awesomeperson@mycooldomain.com"
+      # and "awesomemail@mycooldomain.com".
+      #
+      "awesome*@mycooldomain.com":
+        urls:
+          - pover://USER_KEY@TOKEN
+
+      # Of course, it's also possible to pattern match by the domain.
+      #
+      "my_cool_name@*.net":
+        urls:
+          - pover://USER_KEY@TOKEN
+
+      # Wildcard targets are evaluated in the order they appear in the
+      # configuration file, and Mailrise uses the first match. So, this config
+      # will catch any addresses not matched by the previous targets.
+      #
+      # Note that if you use "*" as your pattern, Mailrise will expand that to
+      # "*@mailrise.xyz", which is probably not the catch-all target you wanted.
+      #
+      "*@*":
+        urls:
+          - discord://WEBHOOK_ID/WEBHOOK_TOKEN
+
+    # Finally, you can enable TLS encryption and/or SMTP authentication if you
+    # want them.
+
+    tls:
+      mode: starttls
+      certfile: /path/to/certificate.pem
+      keyfile: /path/to/privatekey.pem
+
+    smtp:
+      basic:
+        username: password
+        AzureDiamond: hunter2
+
+Easy TLS with Traefik
+---------------------
+
+Given the popularity of Let's Encrypt, it can be a pain to get Mailrise to work
+with automatic certificate renewals. For easy TLS setup, I recommend running
+Mailrise in plaintext mode while using a fully-featured ACME client like Traefik
+to handle encryption for you.
+
+docker-compose.yml:
+
+.. code-block:: yaml
+
+    mailrise:
+      image: yoryan/mailrise
+      container_name: mailrise
+      restart: unless-stopped
+      volumes:
+        - ./mailrise.conf:/etc/mailrise.conf:ro
+      labels:
+        traefik.tcp.routers.mailrise.rule: "HostSNI(`*`)"
+        traefik.tcp.routers.mailrise.tls: "true"
+        traefik.tcp.routers.mailrise.tls.certresolver: "letsencrypt"
+        traefik.tcp.routers.mailrise.tls.domains[0].main: "my.public.mailrise.domain.com"
+        traefik.tcp.routers.mailrise.tls.domains[0].sans: ""
+        traefik.tcp.routers.mailrise.entrypoints: "mailsecure"
+
+traefik.yml:
+
+.. code-block:: yaml
+
+    entryPoints:
+      mailsecure:
+        address: ":465"
+
+    certificatesResolvers:
+      letsencrypt:
+        # ...
+
+SMTP clients can then connect to my.public.mailrise.domain.com, on port 465,
+using the TLS-on-connect mode.
